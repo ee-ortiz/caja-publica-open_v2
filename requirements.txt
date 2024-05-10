@@ -1,0 +1,11 @@
+streamlit
+sqlalchemy
+spacy
+python-dotenv
+psycopg2-binary
+pyvis
+stvis
+extra-streamlit-components
+firebase-admin
+email-validator
+streamlit-extras
