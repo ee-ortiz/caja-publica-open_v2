@@ -1,4 +1,5 @@
 streamlit
+pyathena
 sqlalchemy
 spacy
 python-dotenv

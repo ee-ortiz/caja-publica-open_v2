@@ -1,25 +1,29 @@
-from utils import *
+import os
 import streamlit as st
+from utils import query_athena
 from empresas.empresas_utils import draw_empresas
 from empresas.grafo import get_graph
 
-
 def main_empresas(tipo_contrato, year_slider):
-
-    # Current radio in environment variable:
+    """
+    Lógica principal cuando se selecciona 'Por empresa'.
+    - Pide el NIT (sólo 9 dígitos).
+    - Consulta personas_juridicas.
+    - Muestra dataframe.
+    - Llama a draw_empresas() y al grafo de la empresa.
+    """
+    # Current radio en la variable de entorno (opcional para debug)
     os.environ['RADIO'] = "Por empresa"
 
-    # Input box for cedula
+    # Input NIT
     nit = st.text_input("Ingrese un NIT", value="")
-    nit = nit.replace(".", "").replace(",", "")
-    nit = nit.replace("-", "")
+    nit = nit.replace(".", "").replace(",", "").replace("-", "")
+    nit = nit[:9]  # Mantiene primeros 9 dígitos
 
-    # Keep only first 9 digits
-    nit = nit[:9]
-
+    print("SELECCIONAMOS EMPRESAS")
     print("nit: ", nit)
 
-    # If cedula is empty, stop
+    # Si NIT vacío, paramos
     if nit == "":
         st.stop()
 
@@ -33,11 +37,12 @@ def main_empresas(tipo_contrato, year_slider):
     """
 
     with st.spinner('Buscando...'):
-        original_df = query_postgres(query)
+        original_df = query_athena(query)
 
     st.dataframe(original_df)
 
-    # Replace empty by NaN in valor_contrato and pago_por_mes
+    # Dibuja la tabla con tu lógica custom
     draw_empresas(original_df)
 
+    # Llama al grafo
     get_graph(nit)

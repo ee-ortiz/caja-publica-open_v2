@@ -1,6 +1,6 @@
 import psycopg2
 import streamlit as st
-from utils import query_postgres
+from utils import *
 import pyvis
 from pyvis.network import Network
 import pandas as pd
@@ -169,156 +169,142 @@ def get_graph(cedula: str):
 
     query = """
 
--- traigo lo de represenante legal de un miembro de consorcio
-    -- first example 1054989733
-    with rlmc as (
-        
-        -- puedo filtrar por empresa, segun previo filtro en personas naturales
-        select 
-            documento_empresa as id_origen, 
-            nombre_empresa as nombre_origen, 
-            codigo_grupo as id_destino, 
-            nombre_grupo as nombre_destino, 
-            'empresa_consorcio' as relacion,
-            sum(valor_contrato_millones) as total_contratos_millones,
-            count(id_unico) as numero_de_contratos,
-            'j' as tipo_origen, 
-            'c' as tipo_destino
-        
-        from representates_miembros_consorcio
-        where documento_persona = '{documento_persona}'
-        group by documento_empresa, nombre_empresa, codigo_grupo, nombre_grupo
-        
-        
+    WITH rlmc AS (
+        SELECT 
+            documento_empresa AS id_origen, 
+            nombre_empresa AS nombre_origen, 
+            codigo_grupo AS id_destino, 
+            nombre_grupo AS nombre_destino, 
+            'empresa_consorcio' AS relacion,
+            SUM(CAST(valor_contrato_millones AS DOUBLE)) AS total_contratos_millones,
+            COUNT(id_unico) AS numero_de_contratos,
+            'j' AS tipo_origen, 
+            'c' AS tipo_destino
+        FROM representantes_miembros_consorcio
+        WHERE documento_persona = '{documento_persona}'
+        GROUP BY documento_empresa, nombre_empresa, codigo_grupo, nombre_grupo
     ),
-
-    filtro as (
-        select 
-            documento_persona, nombre_persona, nit_empresa, nombre_empresa, nit_entidad, nombre_entidad, tipo_relacion, id_unico, valor_contrato_millones
-            from personas_naturales
-            where documento_persona = '{documento_persona}'
+    filtro AS (
+        SELECT 
+            documento_persona, 
+            nombre_persona, 
+            nit_empresa, 
+            nombre_empresa, 
+            nit_entidad, 
+            nombre_entidad, 
+            tipo_relacion, 
+            id_unico, 
+            valor_contrato_millones
+        FROM personas_naturales
+        WHERE documento_persona = '{documento_persona}'
     ),
-
-
-
-    miembro as (
-
-        select 
-            documento_persona as id_origen, 
-            nombre_persona as nombre_origen, 
-            nit_empresa as id_destino, -- nit empresa aca hace referencia al codigo del grupo
-            nombre_empresa as nombre_destino, 
-            'persona_consorcio' as relacion, 
-            SUM(cast (valor_contrato_millones AS FLOAT)) as total_contratos_millones,
-            count(id_unico) as numero_de_contratos,
-            'n' as tipo_origen, 
-            'c' as tipo_destino
-        from filtro
-        where tipo_relacion = 'Miembro de consorcio'
-        group by documento_persona, nombre_persona, nit_empresa, nombre_empresa
-
+    miembro AS (
+        SELECT
+            documento_persona AS id_origen,
+            nombre_persona AS nombre_origen,
+            nit_empresa AS id_destino,
+            nombre_empresa AS nombre_destino,
+            'persona_consorcio' AS relacion,
+            SUM(CAST(valor_contrato_millones AS DOUBLE)) AS total_contratos_millones,
+            COUNT(id_unico) AS numero_de_contratos,
+            'n' AS tipo_origen,
+            'c' AS tipo_destino
+        FROM filtro
+        WHERE tipo_relacion = 'Miembro de consorcio'
+        GROUP BY documento_persona, nombre_persona, nit_empresa, nombre_empresa
     ),
-
-    rte_legal_temp as (
-        select 
-            documento_persona as id_origen, 
-            nit_empresa as id_destino, 
-            'rte_empresa' as relacion, -- nit empresa aca hace referencia al codigo del grupo
-            sum(CAST(valor_contrato_millones AS FLOAT)) as total_contratos_millones,
-            count(id_unico) as numero_de_contratos,
-            'n' as tipo_origen, 
-            'j' as tipo_destino
-        from filtro
-        where tipo_relacion = 'Representante legal'
-        group by documento_persona, nit_empresa
+    rte_legal_temp AS (
+        SELECT
+            documento_persona AS id_origen,
+            nit_empresa AS id_destino,
+            'rte_empresa' AS relacion,
+            SUM(CAST(valor_contrato_millones AS DOUBLE)) AS total_contratos_millones,
+            COUNT(id_unico) AS numero_de_contratos,
+            'n' AS tipo_origen,
+            'j' AS tipo_destino
+        FROM filtro
+        WHERE tipo_relacion = 'Representante legal'
+        GROUP BY documento_persona, nit_empresa
     ),
-
-    rte_legal as (
-        select 
+    rte_legal AS (
+        SELECT
             t.id_origen,
-            m.nombre_persona as nombre_origen,
+            m.nombre_persona AS nombre_origen,
             t.id_destino,
-            r.nombre_empresa as nombre_destino,
+            r.nombre_empresa AS nombre_destino,
             t.relacion,
             t.total_contratos_millones,
             t.numero_de_contratos,
             t.tipo_origen,
             t.tipo_destino
-        from rte_legal_temp t
-        left join ids_nombres m
-        on t.id_origen = m.documento_persona
-        left join representantes_legales r
-        on t.id_destino = r.doc_empresa
+        FROM rte_legal_temp t
+        LEFT JOIN ids_nombres m ON t.id_origen = m.documento_persona
+        LEFT JOIN representantes_legales r ON t.id_destino = r.doc_empresa
     ),
-
-    ops as (
-
-        select 
-            documento_persona as id_origen, 
-            nombre_persona as nombre_origen, 
-            nit_entidad as id_destino, -- ojo, no es de confiar el nit de la alcaldia o gobernacion
-            nombre_entidad as nombre_destino, -- en este caso nombre_empresa hace referencia a alcaldia o gobernacion
-            'persona_entidad' as relacion,
-            SUM(CAST(valor_contrato_millones AS FLOAT)) as total_contratos_millones,
-            count(id_unico) as numero_de_contratos,
-            'n' as tipo_origen, 
-            'e' as tipo_destino
-        from filtro
-        where tipo_relacion = 'Contratista'
-        group by documento_persona, nombre_persona, nit_entidad, nombre_entidad
+    ops AS (
+        SELECT
+            documento_persona AS id_origen,
+            nombre_persona AS nombre_origen,
+            nit_entidad AS id_destino,
+            nombre_entidad AS nombre_destino,
+            'persona_entidad' AS relacion,
+            SUM(CAST(valor_contrato_millones AS DOUBLE)) AS total_contratos_millones,
+            COUNT(id_unico) AS numero_de_contratos,
+            'n' AS tipo_origen,
+            'e' AS tipo_destino
+        FROM filtro
+        WHERE tipo_relacion = 'Contratista'
+        GROUP BY documento_persona, nombre_persona, nit_entidad, nombre_entidad
     ),
-
-    grupos_search as (
-        select distinct id_destino as codigo_grupo from rlmc union all
-        select distinct id_destino as codigo_grupo from miembro -- hace referencia al codigo grupo
+    grupos_search AS (
+        SELECT DISTINCT id_destino AS codigo_grupo FROM rlmc
+        UNION ALL
+        SELECT DISTINCT id_destino AS codigo_grupo FROM miembro
     ),
-
-    miembros_grupo as (
-        select 
-            codigo_grupo as id_origen, 
-            nombre_grupo as nombre_origen, 
-            nit_participante as id_destino, 
-            nombre_participante as nombre_destino, 
-            'consorcio_empresa' as relacion,
-            -1.0 as total_contratos_millones,
-            -1 as numero_de_contratos,
-            'c' as tipo_origen, 
-            'j' as tipo_destino
-        from grupos
-        where codigo_grupo in (
-            select codigo_grupo from grupos_search
-        )
+    miembros_grupo AS (
+        SELECT
+            codigo_grupo AS id_origen,
+            nombre_grupo AS nombre_origen,
+            nit_participante AS id_destino,
+            nombre_participante AS nombre_destino,
+            'consorcio_empresa' AS relacion,
+            -1.0 AS total_contratos_millones,
+            CAST(-1 AS BIGINT) AS numero_de_contratos,
+            'c' AS tipo_origen,
+            'j' AS tipo_destino
+        FROM grupos
+        WHERE codigo_grupo IN ( SELECT codigo_grupo FROM grupos_search )
     ),
-
-		representantes_miembros as (
-		    select 
-		        doc_empresa as id_origen, 
-		        nombre_empresa as nombre_origen, 
-		        doc_representante_legal as id_destino, 
-		        nombre_representante_legal as nombre_destino,
-		        'empresa_rte' as relacion,
-		        -1.0 as total_contratos_millones,
-		        -1 as numero_de_contratos,
-		        'j' as tipo_origen, 
-		        'n' as tipo_destino
-		    from representantes_legales_final
-		    where doc_empresa in (
-		        select id_destino from miembros_grupo -- nit_participante
-		    )
-		)
-
-
-    select * from rlmc union all 
-    select * from miembro union all
-    select * from rte_legal union all
-    select * from ops union all
-    select * from miembros_grupo union all
-    select * from representantes_miembros
+    representantes_miembros AS (
+        SELECT
+            doc_empresa AS id_origen,
+            nombre_empresa AS nombre_origen,
+            doc_representante_legal AS id_destino,
+            nombre_representante_legal AS nombre_destino,
+            'empresa_rte' AS relacion,
+            -1.0 AS total_contratos_millones,
+            CAST(-1 AS BIGINT) AS numero_de_contratos,
+            'j' AS tipo_origen,
+            'n' AS tipo_destino
+        FROM representantes_legales_final
+        WHERE doc_empresa IN ( SELECT id_destino FROM miembros_grupo )
+    )
+    SELECT * FROM rlmc
+    UNION ALL
+    SELECT * FROM miembro
+    UNION ALL
+    SELECT * FROM rte_legal
+    UNION ALL
+    SELECT * FROM ops
+    UNION ALL
+    SELECT * FROM miembros_grupo
+    UNION ALL
+    SELECT * FROM representantes_miembros;
 
     """.format(documento_persona=cedula)
 
 
-    response_df = query_postgres(query)
+    response_df = query_athena(query)
 
 
     # st.dataframe(response_df)

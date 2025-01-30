@@ -1,45 +1,51 @@
 import streamlit as st
 from utils import tipos_contratos
-from auth.main_auth import login_panel, cookie_manager, cookie_name, login_panel_guest
+from auth.main_auth import login_panel, cookie_manager, COOKIE_NAME
 from feedback.main import main_feedback
-
 from streamlit_extras.switch_page_button import switch_page
 
 if "clicked" not in st.session_state:
     st.session_state.clicked = False
 
 def click_button():
+    """
+    Marca en session_state que se hizo clic en "Regístrate"
+    para manejar la lógica en la página actual.
+    """
     st.session_state.clicked = True
 
-
 def draw_sidebar():
+    """
+    Dibuja la barra lateral:
+    - Selección de tipo de búsqueda (persona, empresa, entidad)
+    - Filtros de tipo de contrato y año
+    - Sección de feedback
+    - Botón Cerrar sesión (si no es 'guest')
+    - Botón Regístrate (si es invitado o @gmail.com)
+    """
     print("Starting sidebar..")
     with st.sidebar:
-        # Navegacion
+        # Navegación principal
         st.title("Tipo de búsqueda")
-
         radio = st.radio(
             "Buscar:",
             ("Por persona", "Por empresa", "Por entidad estatal")
         )
 
-        # Set sidebar
+        # Filtros
         st.title("Filtros")
-        # Filtro por tipo de contrato
         st.subheader("Tipo de contrato")
-        tipo_contrato = st.sidebar.multiselect(
+        tipo_contrato = st.multiselect(
             "Seleccione un tipo de contrato",
             tipos_contratos,
             default="Todos",
             key="tipo_contrato"
         )
 
-        # Filtro por año
-        # st.sidebar.header("Filtros")
         st.subheader("Año")
         prefilter = st.radio("Seleccione:", ("Todos", "Ciertos años"), index=0, key="prefilter")
         if prefilter == "Ciertos años":
-            year_value= st.sidebar.slider(
+            year_value = st.slider(
                 "Seleccione un rango de años:",
                 2005, 2023, (2020, 2024),
                 key="year_value"
@@ -54,12 +60,15 @@ def draw_sidebar():
 
         st.divider()
         print("USERNAME: ", st.session_state["username"])
-        # BOTON CERRAR SESION
+
+        # Botón de cerrar sesión (sólo si NO es guest)
         if st.session_state["username"] != "guest" and st.session_state["username"] != "@gmail.com":
             print("Flujo de cerrar sesion..")
             st.session_state["activate_toast"] = False
-            login_panel(cookie_manager, cookie_name)        
+            # Llamamos al panel de login, que internamente incluye "Cerrar sesión"
+            login_panel(cookie_name=COOKIE_NAME)
 
+        # Botón de registro (sólo si es guest o @gmail.com)
         if st.session_state["username"] == "guest" or st.session_state["username"] == "@gmail.com":
             registrarse = st.button("Regístrate", on_click=click_button)
             if st.session_state.clicked:
@@ -71,8 +80,5 @@ def draw_sidebar():
             if registrarse:
                 print("now here!")
                 switch_page("login")
-            
-        # BOTON DE REGISTRO PARA EL GUEST
-        # if st.session_state["username"] == "guest":
-            # login_panel_guest(cookie_manager, cookie_name)
+
     return radio, tipo_contrato, year_value

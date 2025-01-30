@@ -1,46 +1,43 @@
 import streamlit as st
-import firebase_admin
-from auth.main_auth import cookie_is_valid, not_logged_in, login_panel, cookie_manager, cookie_name, write_cookie
 import asyncio
 from datetime import datetime, timedelta
-from streamlit_extras.switch_page_button import switch_page
+
+from auth.main_auth import (
+    cookie_is_valid_v2,
+    not_logged_in,
+    login_panel,
+    cookie_manager,
+    COOKIE_NAME,
+    RL_COOKIE_NAME,
+    write_cookie
+)
 
 def auth_function():
-
-    if cookie_is_valid(cookie_manager, "rl"):
-        print("RATE LIMIT STEP")
+    """
+    Ejemplo de página que muestra un flujo de verificación.
+    Aquí podrías manejar la creación de un usuario invitado o
+    la detección de rate-limit, etc.
+    """
+    # Si la cookie de rate-limit (RL) es válida, mostrar un mensaje
+    if cookie_is_valid_v2(RL_COOKIE_NAME):
         st.title("Rate limit")
-        st.write("Has excedido el límite de búsquedas. Por favor, regístrate para seguir utilizando la aplicación.")
+        st.write("Has excedido el límite de búsquedas. Por favor, regístrate para continuar.")
+        return
 
-        
-        return "break"
+    # Si la cookie principal no es válida, no está logueado
+    if not cookie_is_valid_v2(COOKIE_NAME):
+        st.write("No estás logueado. Se creará usuario invitado.")
+        exp_date = datetime.now() + timedelta(days=1)
+        st.session_state["name"] = "Guest"
+        st.session_state["username"] = "guest"
+        st.session_state["authentication_status"] = True
+        st.session_state["logout"] = False
 
+        asyncio.run(write_cookie(COOKIE_NAME, "Guest", "guest", exp_date))
+        st.success("Sesión invitado iniciada.")
+    else:
+        st.write("Ya estás logueado con cookie válida.")
+        login_panel(cookie_name=COOKIE_NAME)
 
-
-    elif not cookie_is_valid(cookie_manager, cookie_name):
-        print("Not logged in.")
-        # Create cookie for guest user
-
-        if cookie_is_valid(cookie_manager, "rl") and st.session_state["logout"] == False and not_logged_in(
-            cookie_manager, cookie_name, preauthorized="gmail.com"):
-
-            print("There is rate limit.")
-        
-            print("FIRST")
-            return None
-
-        else:
-            
-            print("Creating cookie for guest user")
-            exp_date = datetime.now() + timedelta(days=1)
-            st.session_state["name"] = "Guest"
-            st.session_state["username"] = "guest"
-            st.session_state["authentication_status"] = True
-            st.session_state["logout"] = False
-
-            print("Calling async")
-            asyncio.run(write_cookie(cookie_manager, "login_cookie", exp_date, "guestWrite"))
-            
-            print("LOGGED IN")
-            return None
-    
+if __name__ == "__main__":
+    auth_function()

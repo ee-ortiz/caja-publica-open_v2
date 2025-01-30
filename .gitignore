@@ -1,0 +1,14 @@
+# Ignorar todos los directorios __pycache__ en cualquier nivel
+**/__pycache__/
+
+# Ignorar todos los archivos .pyc
+*.pyc
+
+# Ignorar todos los archivos .json
+*.json
+
+# Ignorar todos los archivos .env
+*.env
+
+# Ignorar todos los entornos virtuales /venv
+/venv/

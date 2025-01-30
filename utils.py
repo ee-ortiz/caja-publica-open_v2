@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 load_dotenv()
 import os
 import numpy as np
+from urllib.parse import quote_plus 
 
 tipos_contratos = [
     "Todos",
@@ -43,41 +44,37 @@ tipos_contratos = [
 
 @st.cache_resource
 def load_engine():
-    print("Loading engine...")
+    print("Loading Athena engine...")
 
-    # POSTGRESQL CONFIG:
-    host = os.environ["AWS_DATABASE_URL"]
-    port = 5432
-    user = os.environ["AWS_DATABASE_USER"]
-    password = os.environ["AWS_DATABASE_PASSWORD"]
+    # Configuración de Athena
+    aws_access_key = os.environ.get("AWS_ACCESS_KEY_ID", "")
+    aws_secret_key = os.environ.get("AWS_SECRET_ACCESS_KEY", "")
+    region = os.environ["AWS_REGION"]
+    s3_staging_dir = quote_plus(os.environ["AWS_S3_STAGING_DIR"])  # Ej: s3://tu-bucket/athena-results/
+    database = "secop"
 
-    # Create engine with fast_executemany=True
-    engine = create_engine(f'postgresql+psycopg2://{user}:{password}@{host}:{port}/secop')
+    # Crear cadena de conexión para Athena
+    connection_str = (
+        f"awsathena+rest://{aws_access_key}:{aws_secret_key}@athena.{region}.amazonaws.com:443/"
+        f"{database}?s3_staging_dir={s3_staging_dir}"
+    )
 
-    print(engine)
-
+    engine = create_engine(connection_str)
     return engine
 
 engine = load_engine()
 
 @st.cache_data
-def query_postgres(sql_query: str) -> pd.DataFrame:
-
+def query_athena(sql_query: str) -> pd.DataFrame:
     with engine.connect() as conn:
         result = conn.execute(text(sql_query))
+        # vamos a imprimir el query
+        print(f"Query: {sql_query}")
+        # Obtener nombres de columnas directamente desde el resultado
+        column_names = result.keys()
         rows = result.fetchall()
 
-    # Get the column names
-    column_names = [item[0] for item in result.context.cursor.description]
-
-    # Create a dictionary with column names as keys and corresponding values from data rows
-    parsed_data = [dict(zip(column_names, row)) for row in rows]
-
-    # Convert to Pandas DataFrame
-    parsed_data = pd.DataFrame(parsed_data)
-
-    # Return the parsed data
-    return parsed_data
+    return pd.DataFrame(rows, columns=column_names)
 
 @st.cache_resource
 def load_nlp():
