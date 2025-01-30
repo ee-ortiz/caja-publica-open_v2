@@ -35,10 +35,13 @@ def draw_sidebar():
         # Filtros
         st.title("Filtros")
         st.subheader("Tipo de contrato")
+        if "tipo_contrato" not in st.session_state:
+            st.session_state["tipo_contrato"] = ["Todos"]
+
         tipo_contrato = st.multiselect(
             "Seleccione un tipo de contrato",
             tipos_contratos,
-            default="Todos",
+            # default="Todos",  # <- COMENTA o ELIMINA ESTA LÍNEA
             key="tipo_contrato"
         )
 
