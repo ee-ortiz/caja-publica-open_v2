@@ -14,161 +14,111 @@ color_map = {
 }
 
 def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
-
-
-    # Group by id_origen and id_destino and sum total_contratos_millones
-    # df = df.groupby(["id_origen", "id_destino"]).agg({"total_contratos_millones": "sum"}).reset_index()
-
-        # If tipo_origen is "j" then keep first 9 digits of id_origen
+    # Si tipo_origen es "j", nos quedamos con 9 dígitos de id_origen
     df["id_origen"] = df.apply(lambda x: str(x["id_origen"])[:9] if x["tipo_origen"] == "j" else x["id_origen"], axis=1)
-
-    # If tipo_destino is "j" then keep first 9 digits of id_destino
+    # Si tipo_destino es "j", idem para id_destino
     df["id_destino"] = df.apply(lambda x: str(x["id_destino"])[:9] if x["tipo_destino"] == "j" else x["id_destino"], axis=1)
 
     nodes_origines = df[["id_origen", "nombre_origen", "tipo_origen"]].drop_duplicates()
     nodes_destinos = df[["id_destino", "nombre_destino", "tipo_destino"]].drop_duplicates()
 
-    # Number of characters for nombre_origen
-    nodes_origines["nombre_origen_len"] = nodes_origines["nombre_origen"].apply(lambda x: len(x))
+    # Rellenamos valores nulos en nombres
+    nodes_origines["nombre_origen"] = nodes_origines["nombre_origen"].fillna("")
+    nodes_destinos["nombre_destino"] = nodes_destinos["nombre_destino"].fillna("")
 
-    # Number of characters for nombre_destino
+    # Calculamos la longitud de los nombres para elegir el más largo
+    nodes_origines["nombre_origen_len"] = nodes_origines["nombre_origen"].apply(lambda x: len(x))
     nodes_destinos["nombre_destino_len"] = nodes_destinos["nombre_destino"].apply(lambda x: len(x))
 
-    # Identify the index of rows with the highest score for each company_id
     idx_to_keep_origenes = nodes_origines.groupby('id_origen')['nombre_origen_len'].idxmax()
-    # Create a new DataFrame with only the rows to keep
-    nodes_origines = nodes_origines.loc[idx_to_keep_origenes]
-
-    # Identify the index of rows with the highest score for each company_id
     idx_to_keep_destinos = nodes_destinos.groupby('id_destino')['nombre_destino_len'].idxmax()
-    # Create a new DataFrame with only the rows to keep
-    nodes_destinos = nodes_destinos.loc[idx_to_keep_destinos]
 
-    # Drop
-    nodes_origines = nodes_origines.drop(columns=["nombre_origen_len"])
-    nodes_destinos = nodes_destinos.drop(columns=["nombre_destino_len"])
+    nodes_origines = nodes_origines.loc[idx_to_keep_origenes].drop(columns=["nombre_origen_len"])
+    nodes_destinos = nodes_destinos.loc[idx_to_keep_destinos].drop(columns=["nombre_destino_len"])
 
+    # Renombramos columnas para unificarlas
     nodes_origines.columns = ["id", "name", "tipo"]
     nodes_destinos.columns = ["id", "name", "tipo"]
     nodes = pd.concat([nodes_origines, nodes_destinos], ignore_index=True)
 
+    # Excluimos valores no válidos
     nodes = nodes[nodes["id"] != "No Definido"]
     nodes = nodes[nodes["id"] != "No Defini"]
 
-    # Parse nodes as int
-    nodes["id"] = nodes["id"].astype(int)
+    # --- MODIFICACIÓN: Extraer solo los dígitos y convertir a int ---
+    nodes["id"] = nodes["id"].astype(str).str.extract(r'(\d+)')[0].astype(int)
 
     nodes["color"] = nodes["tipo"].apply(lambda x: color_map[x])
 
-    # st.dataframe(nodes)
-
-
     df_edges = df[["id_origen", "id_destino", "total_contratos_millones"]]
 
-    df_edges = df_edges[["id_origen", "id_destino", "total_contratos_millones"]]
-
+    # Filtramos edges no válidos
     df_edges = df_edges[df_edges["id_origen"] != "No Definido"]
     df_edges = df_edges[df_edges["id_destino"] != "No Definido"]
-
     df_edges = df_edges[df_edges["id_origen"] != "No Defini"]
     df_edges = df_edges[df_edges["id_destino"] != "No Defini"]
 
-    df_edges["id_origen"] = df_edges["id_origen"].astype(int)
-    df_edges["id_destino"] = df_edges["id_destino"].astype(int)
-    # df_edges["total_contratos_millones_n"] = df_edges["total_contratos_millones_n"].astype(int)
+    # --- MODIFICACIÓN: Extraer dígitos para edges y convertir a int ---
+    df_edges["id_origen"] = df_edges["id_origen"].astype(str).str.extract(r'(\d+)')[0].astype(int)
+    df_edges["id_destino"] = df_edges["id_destino"].astype(str).str.extract(r'(\d+)')[0].astype(int)
 
-    # st.title("Before:")
-    # st.dataframe(df_edges)
-
-    # Group by id_origen and id_destino and sum total_contratos_millones
-    # Also VERY important: reorganize so -1 values stay at the bottom. This is because pyvis will not show edges with value -1.
-    # If repeated, we want to show edges with actual values
+    # Agrupamos por (id_origen, id_destino) y sumamos total_contratos_millones
     df_edges = df_edges.groupby(["id_origen", "id_destino"]).agg({"total_contratos_millones": "sum"}).reset_index().sort_values(by="total_contratos_millones", ascending=False)
 
-    # st.title("After:")
-    # st.dataframe(df_edges)
-
+    # Normalizamos la columna total_contratos_millones en [1, 100]
     if df_edges.shape[0] == 1:
         df_edges["total_contratos_millones_n"] = df_edges["total_contratos_millones"]
     else:
         min_edges = df_edges[df_edges["total_contratos_millones"] > 0]["total_contratos_millones"].min()
         max_edges = df_edges["total_contratos_millones"].max()
         max_minus_min = max_edges - min_edges
-        min_edges, max_edges
 
-        # normalize total_contratos_millones between 1 and 100
-        df_edges["total_contratos_millones_n"] = df_edges["total_contratos_millones"].apply(lambda x: (x - min_edges) / max_minus_min * 100)
-
-
-
-    # st.dataframe(df_edges)
+        df_edges["total_contratos_millones_n"] = df_edges["total_contratos_millones"].apply(lambda x: (x - min_edges) / max_minus_min * 100 if max_minus_min != 0 else 50)
 
     return nodes, df_edges
 
-
 def create_graph(nodes: pd.DataFrame, df_edges: pd.DataFrame):
-
     list_of_tuples = [tuple(row[1]) for row in df_edges.iterrows()]
 
     net = Network(notebook=True, cdn_resources='remote', height="800px", width="980")
 
     nodes_list = nodes["id"].values.tolist()
-    titles_list = nodes["name"].values.tolist()
+    titles_list = [name.title() for name in nodes["name"].values.tolist()]
+    colors_list = nodes["color"].values.tolist()
 
-    titles_list = [x.title() for x in titles_list]
-
-    net.add_nodes(
-        nodes_list,
-        title=titles_list,
-        color=nodes["color"].values.tolist()
-    )
+    net.add_nodes(nodes_list, title=titles_list, color=colors_list)
 
     for t in list_of_tuples:
+        # t = (id_origen, id_destino, total_contratos_millones, total_contratos_millones_n)
         net.add_edge(int(t[0]), int(t[1]), value=int(t[2]), title=t[3])
 
-    # Get total number of nodes
+    # Ajustamos los labels según el número de conexiones
     number_of_nodes = len(net.nodes)
-
-    # Show all labels if number of nodes is less than 5
     if number_of_nodes < 5:
         for i, node in enumerate(net.nodes):
             net.nodes[i]["label"] = node["title"]
-
     else:
-        
-        # Iterate through nodes and update label visibility
         connections = net.get_adj_list()
         for i, node in enumerate(net.nodes):
             node_identifier = node["id"]
             node_connections = connections[node_identifier]
-            number_of_node_connections = len(node_connections)
-            if number_of_node_connections > 3:
-                print(number_of_node_connections)
-                print(node)
-                # Assign title to label in node
+            if len(node_connections) > 3:
                 net.nodes[i]["label"] = node["title"]
             else:
                 net.nodes[i]["label"] = None
-                pass
 
-    # net.show("streamlit_edges.html") # this will save the graph as file as an html document
     st.header("Grafo")
     with st.expander("¿Qué significa cada color?"):
         st.markdown("""
-        - <span style="color:#00bfff">Azul</span>: Empresa
-        - <span style="color:#808080">Gris</span>: Consorcio
-        - <span style="color:#ffc0cb">Rosado</span>: Humano
-        - <span style="color:#ff0000">Rojo</span>: Entidad del estado
+        - <span style="color:#00bfff">Azul</span>: Empresa  
+        - <span style="color:#808080">Gris</span>: Consorcio  
+        - <span style="color:#ffc0cb">Rosado</span>: Humano  
+        - <span style="color:#ff0000">Rojo</span>: Entidad del estado  
         """, unsafe_allow_html=True)
     pv_static(net)
-    
-        
 
 def get_graph(cedula: str):
-
-
     query = """
-
     WITH rlmc AS (
         SELECT 
             documento_empresa AS id_origen, 
@@ -300,19 +250,9 @@ def get_graph(cedula: str):
     SELECT * FROM miembros_grupo
     UNION ALL
     SELECT * FROM representantes_miembros;
-
     """.format(documento_persona=cedula)
 
-
     response_df = query_athena(query)
-
-
-    # st.dataframe(response_df)
-
+    response_df["total_contratos_millones"] = response_df["total_contratos_millones"].astype(float)
     nodes, df_edges = preprocess_data(response_df)
-
-    # st.dataframe(df_edges)
-
-
     create_graph(nodes, df_edges)
-

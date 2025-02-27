@@ -23,6 +23,7 @@ RL_COOKIE_NAME = "rl"                  # Nombre de cookie para "rate limit"
 COOKIE_KEY = "my_secret_key"           # Clave usada para firmar el JWT
 POST_REQUEST_URL_BASE = "https://identitytoolkit.googleapis.com/v1/accounts:"
 COOKIE_EXPIRY_DAYS = 30
+API_KEY = os.getenv("FIREBASE_API_KEY")
 
 # ----------------------------------------------------------------------
 # INICIALIZACIÓN DE FIREBASE (SOLO UNA VEZ)
@@ -165,9 +166,13 @@ def register_user(email: str, name: str, password: str):
 def authenticate_user(email: str, password: str):
     """
     Autentica un usuario en Firebase usando la REST API de Firebase Auth.
-    Retorna el JSON (con `idToken`, `localId`, etc.) o None si falla.
+    Retorna el JSON con `idToken`, `localId`, etc., o None si falla.
     """
-    url = f"{POST_REQUEST_URL_BASE}signInWithPassword?key={firebase_creds['private_key_id']}"
+    if not API_KEY:
+        st.error("Error: No se encontró la API Key de Firebase.")
+        return None
+
+    url = f"https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key={API_KEY}"
     payload = {
         "email": email,
         "password": password,
@@ -175,10 +180,15 @@ def authenticate_user(email: str, password: str):
     }
 
     response = requests.post(url, json=payload)
-    if response.status_code != 200:
-        st.error("Autenticación fallida. Verifica usuario y contraseña.")
-        return None
-    return response.json()
+    data = response.json()
+
+    if response.status_code == 200:
+        return data  # Autenticación exitosa
+
+    # Manejo de errores
+    error_message = data.get("error", {}).get("message", "Error desconocido")
+    st.error(f"Autenticación fallida: {error_message}")
+    return None
 
 # ----------------------------------------------------------------------
 # FORMULARIOS DE LOGIN Y REGISTRO
@@ -258,4 +268,5 @@ def login_panel(cookie_name: str = COOKIE_NAME):
         st.session_state["username"] = None
         st.session_state["authentication_status"] = None
         st.success("Sesión cerrada.")
-        st.experimental_rerun()
+        st.rerun()
+

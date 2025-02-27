@@ -13,11 +13,6 @@ from auth.main_auth import (
     write_cookie
 )
 
-st.set_page_config(
-    layout="wide",
-    initial_sidebar_state="collapsed",
-)
-
 def get_all_cookies():
     """
     WARNING: Usa una característica no soportada de Streamlit.
@@ -66,6 +61,12 @@ def login_function():
     - Si hay rate limit, muestra aviso para registrarse.
     - Si no, muestra tabs para login y registro.
     """
+
+    col1, col2 = st.columns([1, 3])  # Primera columna más pequeña, segunda más grande
+
+    with col1:
+        st.image("assets/logo.png", width=175)
+    
     # Forzamos lectura actual de cookies
     get_all_cookies()
 

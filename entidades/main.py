@@ -2,30 +2,56 @@ import os
 import streamlit as st
 from utils import query_athena
 import plotly.express as px
+import difflib
 
 def main_entidades(tipo_contrato, year_slider):
     """
     Lógica principal cuando se selecciona 'Por entidad estatal'.
-    - Solicita un NIT de entidad
-    - Lanza un query con CTEs para traer:
-      1) Personas Naturales con más $$
-      2) Personas Naturales con más contratos
-      3) Empresas con más $$
-      4) Empresas con más contratos
-      5) Personas con varios roles
-    - Muestra gráficas con plotly
+    Permite buscar por NIT o por nombre de entidad.
+    - Si se busca por nombre, se realiza una búsqueda fuzzy en los registros
+      de personas_naturales para obtener el NIT de la entidad.
     """
     os.environ['RADIO'] = "Por entidad estatal"
 
-    nit = st.text_input("Ingrese un NIT", value="")
-    nit = nit.replace(".", "").replace(",", "").replace("-", "")
-    nit = nit[:9]  # Mantiene primeros 9 dígitos
+    busqueda_tipo = st.radio("Buscar por", options=["NIT", "Nombre"])
 
-    print("SELECCIONAMOS ENTIDADES")
-    print("nit: ", nit)
+    if busqueda_tipo == "NIT":
+        entrada = st.text_input("Ingrese un NIT", value="")
+        entrada = entrada.replace(".", "").replace(",", "").replace("-", "")
+        entrada = entrada[:9]
+    else:
+        entrada = st.text_input("Ingrese el nombre de la entidad", value="").strip()
 
-    if nit == "":
+    st.write(f"Búsqueda por {busqueda_tipo}: {entrada}")
+
+    if entrada == "":
         st.stop()
+
+    # Si se busca por NIT se utiliza directamente ese valor; de lo contrario se busca la mejor coincidencia
+    if busqueda_tipo == "NIT":
+        nit = entrada
+    else:
+        query_entities = f"""
+        SELECT DISTINCT nit_entidad, nombre_entidad
+        FROM personas_naturales
+        WHERE lower(nombre_entidad) LIKE '%{entrada.lower()}%'
+        """
+        df_entities = query_athena(query_entities)
+        if df_entities.empty:
+            st.error("No se encontraron resultados para el criterio de búsqueda.")
+            st.stop()
+        best_ratio = 0
+        best_row = None
+        for idx, row in df_entities.iterrows():
+            ratio = difflib.SequenceMatcher(None, entrada.lower(), row["nombre_entidad"].lower()).ratio()
+            if ratio > best_ratio:
+                best_ratio = ratio
+                best_row = row
+        if best_row is None:
+            st.error("No se encontró una coincidencia cercana.")
+            st.stop()
+        nit = best_row["nit_entidad"]
+        st.write(f"Se seleccionó la entidad: {best_row['nombre_entidad']} (NIT: {nit})")
 
     query = f"""
     WITH personas_de_esta_entidad_v0 AS (

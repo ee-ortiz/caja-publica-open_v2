@@ -1,15 +1,12 @@
 import streamlit as st
-st.set_page_config(
-    layout="wide",
-    initial_sidebar_state="expanded"
-)
 
 import logging
-from sidebar import draw_sidebar
 from utils import *
 from personas.main import main_personas
 from empresas.main import main_empresas
 from entidades.main import main_entidades
+
+from sidebar import draw_sidebar
 
 # Importa las funciones y constantes desde auth/main_auth.py
 from auth.main_auth import (
@@ -21,6 +18,17 @@ from auth.main_auth import (
     RL_COOKIE_NAME,
     write_cookie
 )
+
+st.set_page_config(
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
+
+col1, col2 = st.columns([1, 3])  # Primera columna más pequeña, segunda más grande
+
+with col1:
+    st.image("assets/logo.png", width=175)
+
 
 import firebase_admin
 from firebase_admin import credentials
@@ -82,6 +90,15 @@ def app():
     elif radio == "Por entidad estatal":
         main_entidades(tipo_contrato, year_slider)
         return
+
+def chatbot():
+    """
+    Función que dibuja la interfaz del chatbot.
+    """
+    st.title("Chatbot")
+    st.write("¡Hola! Soy el chatbot de la Caja de la Verdad. ¿En qué puedo ayudarte?")
+    st.write("Por favor, escribe tu mensaje en el cuadro de texto a continuación.")
+    stx.chatbot("chatbot")
 
 def run():
     """

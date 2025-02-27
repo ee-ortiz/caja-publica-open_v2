@@ -71,17 +71,4 @@ def draw_sidebar():
             # Llamamos al panel de login, que internamente incluye "Cerrar sesión"
             login_panel(cookie_name=COOKIE_NAME)
 
-        # Botón de registro (sólo si es guest o @gmail.com)
-        if st.session_state["username"] == "guest" or st.session_state["username"] == "@gmail.com":
-            registrarse = st.button("Regístrate", on_click=click_button)
-            if st.session_state.clicked:
-                print("RUNNING THIS!")
-                st.session_state["guestWantsRegistration"] = True
-                switch_page("login")
-                st.session_state["requestForLogin"] = True
-                st.session_state.clicked = False
-            if registrarse:
-                print("now here!")
-                switch_page("login")
-
     return radio, tipo_contrato, year_value

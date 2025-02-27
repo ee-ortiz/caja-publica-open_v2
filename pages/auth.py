@@ -18,6 +18,12 @@ def auth_function():
     Aquí podrías manejar la creación de un usuario invitado o
     la detección de rate-limit, etc.
     """
+
+    col1, col2 = st.columns([1, 3])  # Primera columna más pequeña, segunda más grande
+
+    with col1:
+        st.image("assets/logo.png", width=175)
+    
     # Si la cookie de rate-limit (RL) es válida, mostrar un mensaje
     if cookie_is_valid_v2(RL_COOKIE_NAME):
         st.title("Rate limit")

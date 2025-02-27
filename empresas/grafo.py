@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 from pyvis.network import Network
 from stvis import pv_static
-
 from utils import query_athena
 
 color_map = {
@@ -30,6 +29,8 @@ def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
     # Creación del DF de nodos (orígenes y destinos)
     nodes_origines = df[["id_origen", "nombre_origen", "tipo_origen"]].drop_duplicates()
     nodes_destinos = df[["id_destino", "nombre_destino", "tipo_destino"]].drop_duplicates()
+    nodes_origines["nombre_origen"] = nodes_origines["nombre_origen"].fillna("")
+    nodes_destinos["nombre_destino"] = nodes_destinos["nombre_destino"].fillna("")
 
     # Para escoger el nombre más largo (en caso de repeticiones)
     nodes_origines["nombre_origen_len"] = nodes_origines["nombre_origen"].apply(len)
@@ -49,8 +50,8 @@ def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
     # Excluimos "No Definido" / "No Defini"
     nodes = nodes[~nodes["id"].isin(["No Definido", "No Defini"])]
 
-    # Convertimos "id" a int
-    nodes["id"] = nodes["id"].astype(int)
+    # --- CORRECCIÓN: Extraer solo dígitos y convertir a int ---
+    nodes["id"] = nodes["id"].astype(str).str.extract(r'(\d+)')[0].astype(int)
 
     # Color de nodo según su tipo
     nodes["color"] = nodes["tipo"].map(color_map)
@@ -62,11 +63,11 @@ def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
     df_edges = df_edges[~df_edges["id_origen"].isin(["No Definido", "No Defini"])]
     df_edges = df_edges[~df_edges["id_destino"].isin(["No Definido", "No Defini"])]
 
-    # Convertimos a int
-    df_edges["id_origen"] = df_edges["id_origen"].astype(int)
-    df_edges["id_destino"] = df_edges["id_destino"].astype(int)
+    # --- CORRECCIÓN: Extraer solo dígitos y convertir a int para los edges ---
+    df_edges["id_origen"] = df_edges["id_origen"].astype(str).str.extract(r'(\d+)')[0].astype(int)
+    df_edges["id_destino"] = df_edges["id_destino"].astype(str).str.extract(r'(\d+)')[0].astype(int)
 
-    # Agrupamos por (origen, destino) y sumamos
+    # Agrupamos por (origen, destino) y sumamos total_contratos_millones
     df_edges = (
         df_edges.groupby(["id_origen", "id_destino"])
         .agg({"total_contratos_millones": "sum"})
@@ -74,7 +75,7 @@ def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
         .sort_values(by="total_contratos_millones", ascending=False)
     )
 
-    # Normalizamos la columna total_contratos_millones en [1, 100], si hay más de 1 fila
+    # Normalizamos la columna total_contratos_millones en [1, 100]
     if df_edges.shape[0] == 1:
         df_edges["total_contratos_millones_n"] = df_edges["total_contratos_millones"]
     else:
@@ -88,7 +89,6 @@ def preprocess_data(df: pd.DataFrame) -> pd.DataFrame:
                 lambda x: (x - min_edges) / max_minus_min * 100 if max_minus_min != 0 else 50
             )
         else:
-            # Si todos son 0 o negativos:
             df_edges["total_contratos_millones_n"] = 1
 
     return nodes, df_edges
@@ -106,29 +106,22 @@ def create_graph(nodes: pd.DataFrame, df_edges: pd.DataFrame):
 
     net.add_nodes(nodes_list, title=titles_list, color=colors_list)
 
-    # Agregamos edges
-    # Observa que list_of_tuples es [ (index, id_origen, id_destino, total_contratos, total_contratos_normalizado)... ]
-    # Por la forma en que se arma en `tuple(row[1])`.
-    # row => (id_origen, id_destino, total_contratos_millones, total_contratos_millones_n)
-    # t => (id_origen, id_destino, total_contratos_millones, total_contratos_millones_n)
-
     for t in list_of_tuples:
         id_origen, id_destino, val_millones, val_millones_n = t
         net.add_edge(
             int(id_origen),
             int(id_destino),
-            value=int(val_millones),  # tamaño del edge
-            title=str(val_millones_n) # tooltip
+            value=int(val_millones),
+            title=str(val_millones_n)
         )
 
-    # Ajustamos labels condicionalmente
     connections = net.get_adj_list()
     for i, node in enumerate(net.nodes):
         node_identifier = node["id"]
         node_connections = connections[node_identifier]
         number_of_node_connections = len(node_connections)
         if number_of_node_connections > 3:
-            net.nodes[i]["label"] = node["title"]  # Nombre
+            net.nodes[i]["label"] = node["title"]
         else:
             net.nodes[i]["label"] = None
 
@@ -284,14 +277,9 @@ def get_graph(nit_empresa: str):
     SELECT * FROM contratos_de_representantes_de_esta_empresa
     """
 
-    # Ejecutamos la consulta
     response_df = query_athena(query)
 
-    # Aseguramos que total_contratos_millones sea float/double en Pandas
     response_df["total_contratos_millones"] = response_df["total_contratos_millones"].astype(float)
 
-    # Preparamos nodos y edges
     nodes, df_edges = preprocess_data(response_df)
-
-    # Renderiza el grafo
     create_graph(nodes, df_edges)

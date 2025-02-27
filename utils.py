@@ -68,8 +68,6 @@ engine = load_engine()
 def query_athena(sql_query: str) -> pd.DataFrame:
     with engine.connect() as conn:
         result = conn.execute(text(sql_query))
-        # vamos a imprimir el query
-        print(f"Query: {sql_query}")
         # Obtener nombres de columnas directamente desde el resultado
         column_names = result.keys()
         rows = result.fetchall()
